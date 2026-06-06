@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toko Kakak - Magic Swipe</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        
+        body { 
+            background: #eef2ff; 
+            color: #333; 
+            overflow: hidden; /* Mencegah scroll body agar swipe lancar */
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Bubble Background */
+        .bubbles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .bubble {
+            position: absolute; bottom: -100px; background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%; animation: rise 12s infinite ease-in;
+        }
+        @keyframes rise {
+            0% { transform: translateY(0) scale(1); opacity: 0.5; }
+            100% { transform: translateY(-120vh) scale(1.4); opacity: 0; }
+        }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 5%; background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(15px); position: sticky; top: 0; z-index: 100;
+        }
+        .logo { font-size: 1.3rem; font-weight: 700; color: #4F46E5; }
+
+        /* Judul Kategori Statis */
+        .category-header {
+            text-align: center; padding: 15px 0; background: white;
+        }
+        #current-cat-name { font-weight: 700; color: #4F46E5; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* CONTAINER UTAMA UNTUK SWIPE */
+        .viewport {
+            width: 100%;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+            touch-action: pan-y; /* Membiarkan scroll atas bawah, tapi JS tangkap geser kiri kanan */
+        }
+
+        .slider-engine {
+            display: flex;
+            width: 300%; /* 3 Kategori */
+            height: 100%;
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .page-panel {
+            width: 100.333%;
+            height: 100%;
+            overflow-y: auto; /* Bisa scroll barang ke bawah */
+            padding: 10px 15px 100px;
+        }
+
+        /* Grid Produk Tetap Rapi */
+        .product-grid {
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 12px;
+        }
+
+        .product-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px; overflow: hidden;
+            border: 1px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .product-img { width: 100%; height: 120px; object-fit: cover; }
+        .product-info { padding: 10px; text-align: center; }
+        .product-title { font-size: 0.75rem; font-weight: 600; height: 35px; overflow: hidden; margin-bottom: 5px; }
+        .product-price { font-size: 0.85rem; color: #4F46E5; font-weight: 700; margin-bottom: 8px; }
+        
+        .add-btn {
+            width: 100%; padding: 8px; border: none; background: #4F46E5;
+            color: white; border-radius: 12px; font-weight: 600; font-size: 0.75rem;
+        }
+
+        .float-wa {
+            position: fixed; bottom: 20px; right: 20px; background: #25d366;
+            color: white; width: 55px; height: 55px; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.6rem; z-index: 1000; text-decoration: none;
+        }
+
+        #cart-modal {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 75%;
+            background: white; z-index: 2000; transition: 0.4s;
+            border-radius: 25px 25px 0 0; padding: 25px;
+        }
+        #cart-modal.active { bottom: 0; }
+    </style>
+</head>
+<body ontouchstart="ts(event)" ontouchmove="tm(event)">
+
+    <div class="bubbles" id="bubble-container"></div>
+
+    <header>
+        <div class="logo">TokoKakak.</div>
+        <div onclick="toggleCart()" style="position: relative;">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <span id="count" style="position: absolute; top:-8px; right:-8px; background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:0.6rem;">0</span>
+        </div>
+    </header>
+    
+    <section class="logo">
+        <h1>Katalog Produk</h1>
+        <p>Pilih kategori kebutuhanmu di bawah ini.</p>
+    </section>
+
+    <div class="category-header">
+        <span id="current-cat-name">Semua Produk</span>
+        <div style="font-size: 0.6rem; color: #aaa; margin-top: 5px;">&larr; Geser Layar Untuk Kategori &rarr;</div>
+    </div>
+
+    <div class="viewport">
+        <div class="slider-engine" id="engine">
+            <div class="page-panel">
+                <div id="grid-all" class="product-grid"></div>
+            </div>
+            <div class="page-panel">
+                <div id="grid-sekolah" class="product-grid"></div>
+            </div>
+            <div class="page-panel">
+                <div id="grid-rumah" class="product-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-modal">
+        <h2 style="margin-bottom: 20px;">Troli</h2>
+        <div id="cart-items" style="height: 60%; overflow-y: auto;"></div>
+        <button onclick="sendWA()" style="width:100%; padding:15px; background:#25d366; color:white; border:none; border-radius:15px; font-weight:700; margin-top:20px;">CHECKOUT WA</button>
+        <p onclick="toggleCart()" style="text-align:center; margin-top:15px; color:#999;">Tutup</p>
+    </div>
+
+    <a href="https://wa.me/6281234567890" class="float-wa">
+        <i class="fa-brands fa-whatsapp"></i>
+    </a>
+
+    <script>
+        const products = [
+            { id: 1, cat: "rumah", name: "Panci Anti Lengket", price: 150000, img: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=400" },
+            { id: 2, cat: "sekolah", name: "Tas Ransel Sekolah", price: 120000, img: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400" },
+            { id: 3, cat: "rumah", name: "Box Baju Besar", price: 45000, img: "https://images.unsplash.com/photo-1595514535415-ebad07b53cc9?w=400" },
+            { id: 4, cat: "sekolah", name: "Buku Tulis Pack", price: 35000, img: "https://images.unsplash.com/photo-1544816155-12df9643f363?w=400" },
+            { id: 5, cat: "rumah", name: "Sapu & Pengki", price: 65000, img: "https://images.unsplash.com/photo-1585909695284-32d2985ac9c0?w=400" },
+            { id: 6, cat: "sekolah", name: "Tempat Pensil", price: 25000, img: "https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?w=400" }
+        ];
+
+        let cart = [];
+        let idx = 0;
+        let x0 = null;
+        const catNames = ["Semua Produk", "Alat Sekolah", "Rumah Tangga"];
+
+        function render() {
+            const make = (items) => items.map(p => `
+                <div class="product-card">
+                    <img src="${p.img}" class="product-img">
+                    <div class="product-info">
+                        <p class="product-title">${p.name}</p>
+                        <p class="product-price">Rp ${p.price.toLocaleString()}</p>
+                        <button class="add-btn" onclick="add(${p.id})">Tambah</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('grid-all').innerHTML = make(products);
+            document.getElementById('grid-sekolah').innerHTML = make(products.filter(p => p.cat === 'sekolah'));
+            document.getElementById('grid-rumah').innerHTML = make(products.filter(p => p.cat === 'rumah'));
+        }
+
+        // SWIPE LOGIC
+        function ts(e) { x0 = e.touches[0].clientX; }
+        function tm(e) {
+            if (!x0) return;
+            let x1 = e.touches[0].clientX;
+            let dx = x0 - x1;
+            if (Math.abs(dx) > 70) {
+                if (dx > 0 && idx < 2) idx++;
+                else if (dx < 0 && idx > 0) idx--;
+                update();
+                x0 = null;
+            }
+        }
+
+        function update() {
+            document.getElementById('engine').style.transform = `translateX(-${idx * 33.33}%)`;
+            document.getElementById('current-cat-name').innerText = catNames[idx];
+        }
+
+        function add(id) {
+            cart.push(products.find(p => p.id === id));
+            document.getElementById('count').innerText = cart.length;
+        }
+
+        function toggleCart() { document.getElementById('cart-modal').classList.toggle('active'); }
+
+        function sendWA() {
+            let txt = "Halo Kak, Pesanan Saya:\n";
+            cart.forEach(it => txt += `- ${it.name}\n`);
+            window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(txt)}`);
+        }
+
+        render();
+        for (let i = 0; i < 10; i++) {
+            const b = document.createElement('div');
+            b.className = 'bubble';
+            b.style.width = b.style.height = Math.random() * 50 + 20 + 'px';
+            b.style.left = Math.random() * 100 + '%';
+            b.style.animationDelay = Math.random() * 5 + 's';
+            document.getElementById('bubble-container').appendChild(b);
+        }
+    </script>
+</body>
+</html>
